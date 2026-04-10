@@ -12,25 +12,33 @@ from zoneinfo import ZoneInfo
 import dropbox
 from dotenv import load_dotenv
 import os
+import logging
 
 
 def main():
+
     load_dotenv()
+    required_vars = ['USERNAME', 'PASSWORD', 'DROPBOX_TOKEN']
+    for var in required_vars:
+        if not os.environ.get(var):
+            raise ValueError(f"Missing environment variable: {var}")
+
     driver = get_driver('https://secure.fourth.com/fmplogin?brand=GLH')
-    login(driver, os.environ.get('USERNAME'), os.environ.get('PASSWORD'))
-    navigate_to_schedule(driver)
-    session = load_cookies(driver)
-    driver.quit()
-    from_date = datetime.datetime.now()
-    from_year = from_date.year
-    from_month = from_date.strftime('%m')
-    from_day = from_date.strftime('%d')
-    to_date = datetime.timedelta(21) + from_date
-    to_year = to_date.year
-    to_month = to_date.strftime('%m')
-    to_day = to_date.strftime('%d')
-    api =f'https://api.fourth.com/api/myschedules/schedule?&%24orderby=StartDateTime+asc&%24top=100&fromDate={from_year}%2F{from_month}%2F{from_day}&toDate={to_year}%2F{to_month}%2F{to_day}'
+    try:
+        login(driver, os.environ.get('USERNAME'), os.environ.get('PASSWORD'))
+        navigate_to_schedule(driver)
+        session = load_cookies(driver)
+    except Exception:
+        print("Selenium error")
+    finally:
+        driver.quit()
+
+
+    api = get_api()
+
     response = session.get(api)
+    response.raise_for_status()
+
     save_data(response)
 
 
@@ -45,7 +53,7 @@ def main():
 
 def get_driver(link):
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
+    options.add_argument('--headless', options=options)
     service = Service()
     driver = webdriver.Chrome(service=service)
     driver.get(link)
@@ -107,7 +115,7 @@ def get_date():
 def save_to_calendar(date):
     cal = Calendar()
     cal.add('prodid', '-//My Work Schedule//EN')
-    cal.add('Version', '2.0')
+    cal.add('version', '2.0')
 
     for day in date:
         event = Event()
@@ -133,6 +141,16 @@ def upload_to_dropbox(local_path, dropbox_path, token):
             mode=dropbox.files.WriteMode.overwrite
         )
 
-
+def get_api():
+    from_date = datetime.datetime.now()
+    from_year = from_date.year
+    from_month = from_date.strftime('%m')
+    from_day = from_date.strftime('%d')
+    to_date = datetime.timedelta(21) + from_date
+    to_year = to_date.year
+    to_month = to_date.strftime('%m')
+    to_day = to_date.strftime('%d')
+    api = f'https://api.fourth.com/api/myschedules/schedule?&%24orderby=StartDateTime+asc&%24top=100&fromDate={from_year}%2F{from_month}%2F{from_day}&toDate={to_year}%2F{to_month}%2F{to_day}'
+    return api
 
 main()
