@@ -9,15 +9,27 @@ import datetime
 from icalendar import Calendar, Event
 import uuid
 from zoneinfo import ZoneInfo
+import dropbox
+from dotenv import load_dotenv
+import os
 
 
 def main():
+    load_dotenv()
     driver = get_driver('https://secure.fourth.com/fmplogin?brand=GLH')
-    login(driver, 'enter username', 'enter password')
+    login(driver, os.environ.get('USERNAME'), os.environ.get('PASSWORD'))
     navigate_to_schedule(driver)
     session = load_cookies(driver)
     driver.quit()
-    api = 'https://api.fourth.com/api/myschedules/schedule?&%24orderby=StartDateTime+asc&%24top=100&fromDate=2026%2F04%2F07&toDate=2026%2F04%2F19'
+    from_date = datetime.datetime.now()
+    from_year = from_date.year
+    from_month = from_date.strftime('%m')
+    from_day = from_date.strftime('%d')
+    to_date = datetime.timedelta(21) + from_date
+    to_year = to_date.year
+    to_month = to_date.strftime('%m')
+    to_day = to_date.strftime('%d')
+    api =f'https://api.fourth.com/api/myschedules/schedule?&%24orderby=StartDateTime+asc&%24top=100&fromDate={from_year}%2F{from_month}%2F{from_day}&toDate={to_year}%2F{to_month}%2F{to_day}'
     response = session.get(api)
     save_data(response)
 
@@ -25,24 +37,28 @@ def main():
     date = get_date()
     save_to_calendar(date)
 
-
+    upload_to_dropbox(
+        local_path='schedule.ics',
+        dropbox_path='/Apps/FourthCalendar/schedule.ics',
+        token=os.environ.get('DROPBOX_TOKEN')
+    )
 
 def get_driver(link):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     service = Service()
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service)
     driver.get(link)
     return driver
 
 def login(driver, username, password):
     wait = WebDriverWait(driver, 10)
+    username_textbox = wait.until(EC.presence_of_element_located((By.ID, 'j_id0:j_id2:j_id15:username')))
+    username_textbox.send_keys(username)
 
-    username = wait.until(EC.presence_of_element_located((By.ID, 'j_id0:j_id2:j_id15:username')))
-    username.send_keys(username)
+    password_textbox = wait.until(EC.presence_of_element_located((By.NAME, 'j_id0:j_id2:j_id15:j_id24')))
+    password_textbox.send_keys(password)
 
-    password = wait.until(EC.presence_of_element_located((By.NAME, 'j_id0:j_id2:j_id15:j_id24')))
-    password.send_keys(password)
 
     button = driver.find_element(By.ID, 'j_id0:j_id2:j_id15:submit')
     button.click()
@@ -54,8 +70,6 @@ def navigate_to_schedule(driver):
 
 def load_cookies(driver):
     cookies = driver.get_cookies()
-    print("Cookies grabbed:", [c['name'] for c in cookies])
-
     session = requests.Session()
     for cookie in cookies:
         session.cookies.set(cookie['name'], cookie['value'], domain=cookie['domain'])
@@ -109,6 +123,15 @@ def save_to_calendar(date):
     with open('schedule.ics', 'wb') as f:
         f.write(cal.to_ical())
 
+def upload_to_dropbox(local_path, dropbox_path, token):
+    dbx = dropbox.Dropbox(token)
+
+    with open(local_path, 'rb') as f:
+        dbx.files_upload(
+            f.read(),
+            dropbox_path,
+            mode=dropbox.files.WriteMode.overwrite
+        )
 
 
 
