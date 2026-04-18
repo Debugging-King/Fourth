@@ -44,16 +44,16 @@ def main():
 
     date = get_date()
     save_to_calendar(date)
+    upload_to_icloud('schedule.ics')
 
     upload_to_dropbox(
         local_path='schedule.ics',
         dropbox_path='/Apps/FourthCalendar/schedule.ics',
-        token=os.environ.get('DROPBOX_TOKEN')
     )
 
 def get_driver(link):
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless', options=options)
+    options.add_argument('--headless')
     service = Service()
     driver = webdriver.Chrome(service=service)
     driver.get(link)
@@ -126,20 +126,42 @@ def save_to_calendar(date):
 
         cal.add_component(event)
 
-
-
     with open('schedule.ics', 'wb') as f:
         f.write(cal.to_ical())
 
-def upload_to_dropbox(local_path, dropbox_path, token):
-    dbx = dropbox.Dropbox(token)
+def upload_to_icloud(local_path):
+    path = '/Users/noah/Library/Mobile Documents/com~apple~CloudDocs/schedule.ics'
 
-    with open(local_path, 'rb') as f:
-        dbx.files_upload(
-            f.read(),
-            dropbox_path,
-            mode=dropbox.files.WriteMode.overwrite
-        )
+    with open(local_path, 'rb') as local, open(path, 'wb') as f:
+        f.write(local.read())
+
+def upload_to_dropbox(local_path, dropbox_path):
+    token_url = "https://api.dropbox.com/oauth2/token"
+    token_data = {
+        "grant_type": "refresh_token",
+        "refresh_token": os.environ.get('REFRESH_TOKEN'),
+        "client_id": os.environ.get('APP_KEY'),
+        "client_secret": os.environ.get('APP_SECRET'),
+    }
+
+    r = requests.post(token_url, data=token_data)
+    access_token = r.json()['access_token']
+
+    upload_url = "https://content.dropboxapi.com/2/files/upload"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Dropbox-API-Arg": json.dumps({
+            "path": dropbox_path,
+            "mode": "overwrite",
+            "autorename": True,
+            "mute": False
+        }),
+        "Content-Type": "application/octet-stream"
+    }
+
+
+    with open(local_path, "rb") as f:
+        response = requests.post(upload_url, headers=headers, data=f)
 
 def get_api():
     from_date = datetime.datetime.now()
