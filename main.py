@@ -175,4 +175,8 @@ def get_api():
     api = f'https://api.fourth.com/api/myschedules/schedule?&%24orderby=StartDateTime+asc&%24top=100&fromDate={from_year}%2F{from_month}%2F{from_day}&toDate={to_year}%2F{to_month}%2F{to_day}'
     return api
 
-main()
+date_now = datetime.datetime.now()
+file_date = datetime.datetime.fromtimestamp(os.path.getmtime('schedule.ics'))
+
+if (date_now.day - file_date.day > 3):
+    main()
