@@ -44,7 +44,7 @@ def main():
 
     date = get_date()
     save_to_calendar(date)
-    upload_to_icloud('schedule.ics')
+    #upload_to_icloud('schedule.ics')
 
     upload_to_dropbox(
         local_path='schedule.ics',
@@ -55,7 +55,7 @@ def get_driver(link):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
     service = Service()
-    driver = webdriver.Chrome(service=service)
+    driver = webdriver.Chrome(service=service, options=options)
     driver.get(link)
     return driver
 
@@ -178,5 +178,4 @@ def get_api():
 date_now = datetime.datetime.now()
 file_date = datetime.datetime.fromtimestamp(os.path.getmtime('schedule.ics'))
 
-if (date_now.day - file_date.day > 3):
-    main()
+main()
